@@ -20,14 +20,14 @@
       button.primary { background: #102033; border-color:#28507a; }
       .kpigrid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; margin-top:12px; }
       .kpi { background:#0d131b; border:1px dashed var(--line); padding:12px; border-radius:10px; }
-      .kpi b { display:block; font-size:12px; color:var(--muted); }
+      .kpi b { display:block; font-size:12px; color: var(--muted); }
       .kpi span { font-size:22px; display:block; margin-top:4px; }
       table { width:100%; border-collapse: collapse; margin-top:16px; background:#0d131b; border-radius:12px; overflow:hidden; }
       thead th { 
         position: sticky; 
-        top: 60px; /* se ajusta según la altura del header */ 
+        top: 80px; /* altura ajustada para que quede fijo debajo del header */
         background:#101722; 
-        z-index: 2; 
+        z-index: 3; 
         box-shadow: 0 2px 3px rgba(0,0,0,0.4);
       }
       th, td { border-bottom: 1px solid #172333; text-align:left; padding:8px 10px; font-size: 13px; }
@@ -154,9 +154,9 @@
 
       function escaparCSV(val){
         const s = String(val ?? "");
-        const needsQuotes = /[;"\n]/.test(s);
-        const escaped = s.replace(/"/g, '""');
-        return needsQuotes ? `"${escaped}"` : escaped;
+        const needsQuotes = /[;\"\n]/.test(s);
+        const escaped = s.replace(/\"/g, '""');
+        return needsQuotes ? `"\${escaped}"` : escaped;
       }
     </script>
 
@@ -164,6 +164,7 @@
     <script src="./app.js"></script>
   </body>
 </html>
+
 
 
 
