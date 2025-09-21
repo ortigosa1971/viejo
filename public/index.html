@@ -99,6 +99,7 @@
       </div>
     </main>
 
+    <!-- Scripts de exportación: NO interfieren con app.js -->
     <script>
       // Exportar CSV: separador ; + BOM UTF-8
       document.getElementById("csvBtn").addEventListener("click", () => {
@@ -141,12 +142,10 @@
         a.remove();
       }
 
-      // Limpia saltos de línea y comillas
       function limpiarTexto(t){
         return (t || "").toString().replace(/\r?\n|\r/g, " ").trim();
       }
 
-      // Escapa comillas dobles según RFC4180
       function escaparCSV(val){
         const s = String(val ?? "");
         const needsQuotes = /[;"\n]/.test(s);
@@ -154,7 +153,11 @@
         return needsQuotes ? `"${escaped}"` : escaped;
       }
     </script>
+
+    <!-- Mantener la lógica original de carga -->
+    <script src="./app.js"></script>
   </body>
 </html>
+
 
 
