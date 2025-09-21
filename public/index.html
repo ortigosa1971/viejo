@@ -7,36 +7,36 @@
     <style>
       :root { --bg:#0b0f14; --card:#121821; --ink:#e8eef7; --muted:#9fb0c6; --accent:#6ec1ff; --line:#223042; }
       * { box-sizing: border-box; }
-      body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'; background:var(--bg); color:var(--ink); line-height:1.5; }
-      header { padding: 16px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #0b0f14, #0b0f14e0); position: sticky; top:0; z-index: 5; }
-      h1 { margin:0; font-size: clamp(22px, 5vw, 28px); text-align:center; }
-      .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+      body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'; background:var(--bg); color:var(--ink); }
+      header { padding: 20px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #0b0f14, #0b0f14e0); position: sticky; top:0; z-index: 5; }
+      h1 { margin:0; font-size: clamp(20px, 3vw, 28px); text-align:center; }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
-      .form { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; }
-      label { font-size: 13px; color: var(--muted); display:block; margin-bottom:6px; }
-      input, button { width:100%; padding:14px 12px; border-radius: 10px; border:1px solid var(--line); background:#0d131b; color:var(--ink); font-size:15px; }
+      .form { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; }
+      label { font-size: 12px; color: var(--muted); display:block; margin-bottom:6px; }
+      input, button { width:100%; padding:10px 12px; border-radius: 10px; border:1px solid var(--line); background:#0d131b; color:var(--ink); }
       input:focus { outline: 2px solid var(--accent); border-color: transparent; }
       button { cursor:pointer; background: #0f1823; border-color:#1e2b3c; }
-      button.primary { background: #102033; border-color:#28507a; font-weight:bold; }
-      .kpigrid { display:grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap:12px; margin-top:16px; }
-      .kpi { background:#0d131b; border:1px dashed var(--line); padding:12px; border-radius:10px; text-align:center; }
-      .kpi b { display:block; font-size:13px; color: var(--muted); }
+      button.primary { background: #102033; border-color:#28507a; }
+      .kpigrid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; margin-top:12px; }
+      .kpi { background:#0d131b; border:1px dashed var(--line); padding:12px; border-radius:10px; }
+      .kpi b { display:block; font-size:12px; color:var(--muted); }
       .kpi span { font-size:22px; display:block; margin-top:4px; }
-      .table-container { overflow-x:auto; margin-top:16px; border-radius:12px; }
-      table { width:100%; border-collapse: collapse; background:#0d131b; min-width:700px; }
+      table { width:100%; border-collapse: collapse; margin-top:16px; background:#0d131b; border-radius:12px; overflow:hidden; }
       thead th { position: sticky; top: 64px; background:#101722; }
-      th, td { border-bottom: 1px solid #172333; text-align:left; padding:10px; font-size: 14px; }
+      th, td { border-bottom: 1px solid #172333; text-align:left; padding:8px 10px; font-size: 13px; }
       tr:hover td { background:#0f1621; }
+      .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
       .row { display:flex; gap:10px; }
       .row > * { flex:1; }
       @media (max-width: 800px){
         .form { grid-template-columns: 1fr; }
-        .kpigrid { grid-template-columns: 1fr 1fr; }
-        thead th { top: 120px; font-size:13px; }
-        th, td { font-size: 13px; padding:8px; }
-        button, input { font-size:14px; }
+        .kpigrid { grid-template-columns: 1fr; }
+        thead th { top: 140px; }
       }
     </style>
+    <!-- SheetJS para exportar a Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   </head>
   <body>
     <header>
@@ -58,6 +58,7 @@
           <div class="row">
             <button id="loadBtn" class="primary">Cargar datos</button>
             <button id="csvBtn">Exportar CSV</button>
+            <button id="xlsxBtn">Exportar Excel</button>
           </div>
           <div>
             <label>&nbsp;</label>
@@ -73,30 +74,87 @@
           <div class="kpi"><b>Temp. máx</b><span id="kpiMax">—</span></div>
         </div>
 
-        <div class="table-container">
-          <table id="dataTable">
-            <thead>
-              <tr>
-                <th>Hora local</th>
-                <th>Temp (°C)</th>
-                <th>P. rocío (°C)</th>
-                <th>Humedad (%)</th>
-                <th>Presión (hPa)</th>
-                <th>Viento (km/h)</th>
-                <th>Ráfaga (km/h)</th>
-                <th>Dir (°)</th>
-                <th>Precip (mm)</th>
-                <th>UV</th>
-                <th>Rad (W/m²)</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+        <table id="dataTable">
+          <thead>
+            <tr>
+              <th>Hora local</th>
+              <th>Temp (°C)</th>
+              <th>P. rocío (°C)</th>
+              <th>Humedad (%)</th>
+              <th>Presión (hPa)</th>
+              <th>Viento (km/h)</th>
+              <th>Ráfaga (km/h)</th>
+              <th>Dir (°)</th>
+              <th>Precip (mm)</th>
+              <th>UV</th>
+              <th>Rad (W/m²)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div class="foot">
+          Exporta como CSV (con separador ;) o Excel (.xlsx) para abrir en Excel sin problemas.
         </div>
       </div>
     </main>
 
-    <script src="./app.js"></script>
+    <script>
+      // Exportar CSV: separador ; + BOM UTF-8
+      document.getElementById("csvBtn").addEventListener("click", () => {
+        const table = document.getElementById("dataTable");
+        let rows = [];
+
+        // Encabezados
+        const headers = Array.from(table.querySelectorAll("thead th")).map(th => limpiarTexto(th.innerText));
+        rows.push(headers);
+
+        // Filas
+        table.querySelectorAll("tbody tr").forEach(tr => {
+          const cells = Array.from(tr.querySelectorAll("td")).map(td => limpiarTexto(td.innerText));
+          rows.push(cells);
+        });
+
+        const csvString = rows.map(r => r.map(escaparCSV).join(";")).join("\n");
+        const BOM = "\uFEFF";
+        const blob = new Blob([BOM + csvString], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+
+        descarga(url, "historico_alfarnate.csv");
+      });
+
+      // Exportar Excel con SheetJS
+      document.getElementById("xlsxBtn").addEventListener("click", () => {
+        const table = document.getElementById("dataTable");
+        const wb = XLSX.utils.table_to_book(table, { sheet: "Histórico" });
+        XLSX.writeFile(wb, "historico_alfarnate.xlsx");
+      });
+
+      // Utilidades
+      function descarga(url, filename){
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        a.remove();
+      }
+
+      // Limpia saltos de línea y comillas
+      function limpiarTexto(t){
+        return (t || "").toString().replace(/\r?\n|\r/g, " ").trim();
+      }
+
+      // Escapa comillas dobles según RFC4180
+      function escaparCSV(val){
+        const s = String(val ?? "");
+        const needsQuotes = /[;"\n]/.test(s);
+        const escaped = s.replace(/"/g, '""');
+        return needsQuotes ? `"${escaped}"` : escaped;
+      }
+    </script>
   </body>
 </html>
+
 
