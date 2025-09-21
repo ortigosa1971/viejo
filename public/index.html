@@ -23,7 +23,13 @@
       .kpi b { display:block; font-size:12px; color:var(--muted); }
       .kpi span { font-size:22px; display:block; margin-top:4px; }
       table { width:100%; border-collapse: collapse; margin-top:16px; background:#0d131b; border-radius:12px; overflow:hidden; }
-      thead th { position: sticky; top: 64px; background:#101722; }
+      thead th { 
+        position: sticky; 
+        top: 60px; /* se ajusta según la altura del header */ 
+        background:#101722; 
+        z-index: 2; 
+        box-shadow: 0 2px 3px rgba(0,0,0,0.4);
+      }
       th, td { border-bottom: 1px solid #172333; text-align:left; padding:8px 10px; font-size: 13px; }
       tr:hover td { background:#0f1621; }
       .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
@@ -32,7 +38,7 @@
       @media (max-width: 800px){
         .form { grid-template-columns: 1fr; }
         .kpigrid { grid-template-columns: 1fr; }
-        thead th { top: 140px; }
+        thead th { top: 120px; }
       }
     </style>
     <!-- SheetJS para exportar a Excel -->
@@ -158,6 +164,7 @@
     <script src="./app.js"></script>
   </body>
 </html>
+
 
 
 
