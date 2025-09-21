@@ -20,21 +20,14 @@
       button.primary { background: #102033; border-color:#28507a; }
       .kpigrid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; margin-top:12px; }
       .kpi { background:#0d131b; border:1px dashed var(--line); padding:12px; border-radius:10px; }
-      .kpi b { display:block; font-size:12px; color: var(--muted); }
+      .kpi b { display:block; font-size:12px; color:var(--muted); }
       .kpi span { font-size:22px; display:block; margin-top:4px; }
-      .tableWrap {
-        background:#0d131b;
-        border:1px solid var(--line);
-        border-radius:12px;
-        overflow:hidden;
-        margin-top:16px;
-      }
-      table { width:100%; border-collapse: collapse; }
+      table { width:100%; border-collapse: collapse; margin-top:16px; background:#0d131b; border-radius:12px; overflow:hidden; }
       thead th { 
         position: sticky; 
-        top: 80px; /* altura ajustada para que quede fijo debajo del header */
+        top: 60px; /* se ajusta según la altura del header */ 
         background:#101722; 
-        z-index: 3; 
+        z-index: 2; 
         box-shadow: 0 2px 3px rgba(0,0,0,0.4);
       }
       th, td { border-bottom: 1px solid #172333; text-align:left; padding:8px 10px; font-size: 13px; }
@@ -65,7 +58,7 @@
           <input id="stationId" value="IALFAR32" type="hidden" />
           
           <div>
-            <label for="date">Fecha (YYYY-MM-DD)</label>
+            <label for="date">Fecha (YYYY‑MM‑DD)</label>
             <input id="date" type="date" />
           </div>
           <div class="row">
@@ -87,32 +80,35 @@
           <div class="kpi"><b>Temp. máx</b><span id="kpiMax">—</span></div>
         </div>
 
-        <div class="tableWrap">
-          <table id="dataTable">
-            <thead>
-              <tr>
-                <th>Hora local</th>
-                <th>Temp (°C)</th>
-                <th>P. rocío (°C)</th>
-                <th>Humedad (%)</th>
-                <th>Presión (hPa)</th>
-                <th>Viento (km/h)</th>
-                <th>Ráfaga (km/h)</th>
-                <th>Dir (°)</th>
-                <th>Precip (mm)</th>
-                <th>UV</th>
-                <th>Rad (W/m²)</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+        <table id="dataTable">
+          <thead>
+            <tr>
+              <th>Hora local</th>
+              <th>Temp (°C)</th>
+              <th>P. rocío (°C)</th>
+              <th>Humedad (%)</th>
+              <th>Presión (hPa)</th>
+              <th>Viento (km/h)</th>
+              <th>Ráfaga (km/h)</th>
+              <th>Dir (°)</th>
+              <th>Precip (mm)</th>
+              <th>UV</th>
+              <th>Rad (W/m²)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
 
         <div class="foot">
           Exporta como CSV (con separador ;) o Excel (.xlsx) para abrir en Excel sin problemas.
         </div>
       </div>
+    
+    <div style="margin:20px; text-align:center;">
+      <button class="primary" onclick="history.back()">⬅ Volver</button>
+    </div>
     </main>
+    
 
     <!-- Scripts de exportación: NO interfieren con app.js -->
     <script>
@@ -163,9 +159,9 @@
 
       function escaparCSV(val){
         const s = String(val ?? "");
-        const needsQuotes = /[;\"\n]/.test(s);
-        const escaped = s.replace(/\"/g, '""');
-        return needsQuotes ? `"\${escaped}"` : escaped;
+        const needsQuotes = /[;"\n]/.test(s);
+        const escaped = s.replace(/"/g, '""');
+        return needsQuotes ? `"${escaped}"` : escaped;
       }
     </script>
 
@@ -173,6 +169,11 @@
     <script src="./app.js"></script>
   </body>
 </html>
+
+
+
+
+
 
 
 
