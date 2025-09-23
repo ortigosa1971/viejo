@@ -20,12 +20,19 @@
       button.primary { background: #102033; border-color:#28507a; }
       .kpigrid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; margin-top:12px; }
       .kpi { background:#0d131b; border:1px dashed var(--line); padding:12px; border-radius:10px; }
-      .kpi b { display:block; font-size:12px; color:var(--muted); }
+      .kpi b { display:block; font-size:12px; color: var(--muted); }
       .kpi span { font-size:22px; display:block; margin-top:4px; }
-      table { width:100%; border-collapse: collapse; margin-top:16px; background:#0d131b; border-radius:12px; overflow:hidden; }
+      /* --- Tabla --- */
+      .table-shell {
+        border-radius:12px;
+        overflow:hidden;
+        background:#0d131b;
+        margin-top:16px;
+      }
+      table { width:100%; border-collapse: collapse; }
       thead th { 
         position: sticky; 
-        top: 60px; /* se ajusta según la altura del header */ 
+        top: 60px;
         background:#101722; 
         z-index: 2; 
         box-shadow: 0 2px 3px rgba(0,0,0,0.4);
@@ -41,7 +48,6 @@
         thead th { top: 120px; }
       }
     </style>
-    <!-- SheetJS para exportar a Excel -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   </head>
   <body>
@@ -50,15 +56,12 @@
         <h1>HISTORICO ALFARNATE</h1>
       </div>
     </header>
-
     <main class="wrap">
       <div class="card">
         <div class="form">
-          <!-- Campo oculto con ID de estación -->
           <input id="stationId" value="IALFAR32" type="hidden" />
-          
           <div>
-            <label for="date">Fecha (YYYY‑MM‑DD)</label>
+            <label for="date">Fecha (YYYY-MM-DD)</label>
             <input id="date" type="date" />
           </div>
           <div class="row">
@@ -68,81 +71,63 @@
           </div>
           <div>
             <label>&nbsp;</label>
-            <div id="status" style="padding:10px 12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);">
-              Listo
-            </div>
+            <div id="status" style="padding:10px 12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);">Listo</div>
           </div>
         </div>
-
         <div class="kpigrid">
           <div class="kpi"><b>Obs. totales</b><span id="kpiCount">—</span></div>
           <div class="kpi"><b>Temp. mín</b><span id="kpiMin">—</span></div>
           <div class="kpi"><b>Temp. máx</b><span id="kpiMax">—</span></div>
         </div>
-
-        <table id="dataTable">
-          <thead>
-            <tr>
-              <th>Hora local</th>
-              <th>Temp (°C)</th>
-              <th>P. rocío (°C)</th>
-              <th>Humedad (%)</th>
-              <th>Presión (hPa)</th>
-              <th>Viento (km/h)</th>
-              <th>Ráfaga (km/h)</th>
-              <th>Dir (°)</th>
-              <th>Precip (mm)</th>
-              <th>UV</th>
-              <th>Rad (W/m²)</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-
+        <div class="table-shell">
+          <table id="dataTable">
+            <thead>
+              <tr>
+                <th>Hora local</th>
+                <th>Temp (°C)</th>
+                <th>P. rocío (°C)</th>
+                <th>Humedad (%)</th>
+                <th>Presión (hPa)</th>
+                <th>Viento (km/h)</th>
+                <th>Ráfaga (km/h)</th>
+                <th>Dir (°)</th>
+                <th>Precip (mm)</th>
+                <th>UV</th>
+                <th>Rad (W/m²)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
         <div class="foot">
           Exporta como CSV (con separador ;) o Excel (.xlsx) para abrir en Excel sin problemas.
         </div>
       </div>
-    
-    <div style="margin:20px; text-align:center;">
-      <button class="primary" onclick="history.back()">⬅ Volver</button>
-    </div>
+      <div style="margin:20px; text-align:center;">
+        <button class="primary" onclick="history.back()">⬅ Volver</button>
+      </div>
     </main>
-    
-
-    <!-- Scripts de exportación: NO interfieren con app.js -->
     <script>
-      // Exportar CSV: separador ; + BOM UTF-8
       document.getElementById("csvBtn").addEventListener("click", () => {
         const table = document.getElementById("dataTable");
         let rows = [];
-
-        // Encabezados
         const headers = Array.from(table.querySelectorAll("thead th")).map(th => limpiarTexto(th.innerText));
         rows.push(headers);
-
-        // Filas
         table.querySelectorAll("tbody tr").forEach(tr => {
           const cells = Array.from(tr.querySelectorAll("td")).map(td => limpiarTexto(td.innerText));
           rows.push(cells);
         });
-
         const csvString = rows.map(r => r.map(escaparCSV).join(";")).join("\n");
         const BOM = "\uFEFF";
         const blob = new Blob([BOM + csvString], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
-
         descarga(url, "historico_alfarnate.csv");
       });
-
-      // Exportar Excel con SheetJS
       document.getElementById("xlsxBtn").addEventListener("click", () => {
         const table = document.getElementById("dataTable");
         const wb = XLSX.utils.table_to_book(table, { sheet: "Histórico" });
         XLSX.writeFile(wb, "historico_alfarnate.xlsx");
       });
-
-      // Utilidades
       function descarga(url, filename){
         const a = document.createElement("a");
         a.href = url;
@@ -152,11 +137,9 @@
         URL.revokeObjectURL(url);
         a.remove();
       }
-
       function limpiarTexto(t){
         return (t || "").toString().replace(/\r?\n|\r/g, " ").trim();
       }
-
       function escaparCSV(val){
         const s = String(val ?? "");
         const needsQuotes = /[;"\n]/.test(s);
@@ -164,8 +147,6 @@
         return needsQuotes ? `"${escaped}"` : escaped;
       }
     </script>
-
-    <!-- Mantener la lógica original de carga -->
     <script src="./app.js"></script>
   </body>
 </html>
