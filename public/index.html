@@ -45,81 +45,7 @@
         .kpigrid { grid-template-columns: 1fr; }
         thead th { top: 140px; } /* header más alto en móvil */ 
       }
-    
-/* === Mejores estilos móviles === */
-.table-shell { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-table { min-width: 640px; border-collapse: collapse; }
-
-/* Evitar zoom en iOS al enfocar */
-input, select, textarea, button { font-size: 16px; }
-
-/* Tocar cómodamente */
-button, input { min-height: 44px; }
-
-/* Estado de foco visible para accesibilidad */
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-
-/* Mejoras responsivas */
-@media (max-width: 1024px) {
-  .form { grid-template-columns: repeat(2, minmax(0,1fr)); }
-}
-@media (max-width: 800px){
-  .form { grid-template-columns: 1fr; }
-  .kpigrid { grid-template-columns: 1fr; }
-  thead th { position: static; } /* Evita salto/solape en móvil */
-  table { min-width: 520px; }
-  .row { flex-direction: column; }
-}
-
-/* Evitar desbordes horizontales por 100vw */
-html, body { max-width: 100%; overflow-x: hidden; }
-
-    
-
-/* === Mobile-first enhancements (2025-09) === */
-:root{
-  --tap: 44px;
-}
-body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-.wrap { padding: clamp(12px, 3vw, 24px); }
-/* Form grid: 1 col on small, 2 on medium, 4 on large */
-.form { grid-template-columns: 1fr; }
-.form .field, .form button, .form select, .form input { min-height: var(--tap); }
-.form button, .form .btn { width: 100%; }
-/* Medium >= 640px */
-@media (min-width: 640px){
-  .form { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .form button, .form .btn { width: auto; }
-}
-/* Large >= 1024px */
-@media (min-width: 1024px){
-  .form { grid-template-columns: repeat(4, minmax(0,1fr)); }
-}
-
-/* Responsive table: horizontal scroll by default, card view on very small */
-.table-shell { overflow-x:auto; -webkit-overflow-scrolling: touch; }
-table { width:100%; border-collapse: collapse; min-width: 640px; }
-@media (max-width: 520px){
-  /* Stack rows as cards */
-  table { border:0; min-width: 0; }
-  thead { display: none; }
-  tbody { display: grid; gap: 10px; }
-  tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 12px; border:1px solid var(--line); border-radius:12px; background: rgba(255,255,255,0.02); }
-  tbody td { display: grid; grid-template-columns: 1fr auto; align-items: center; border:0; padding: 4px 0; }
-  tbody td::before { content: attr(data-label); font-size: 12px; color: var(--muted); margin-right: 8px; }
-  /* Make first cell full width for readability */
-  tbody td:first-child { grid-column: 1 / -1; padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
-}
-
-/* Make sticky header less tall on small screens */
-@media (max-width: 520px){
-  header { padding: 12px; }
-  h1 { font-size: clamp(18px, 6vw, 24px); }
-}
-
-/* Larger tap targets for header buttons */
-header .actions button { min-height: var(--tap); }
-</style>
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   </head>
   <body>
@@ -220,32 +146,22 @@ header .actions button { min-height: var(--tap); }
       }
     </script>
     <script src="./app.js"></script>
-  <script>
-// === Mobile card view support: set data-labels on table cells ===
-(function(){
-  const table = document.getElementById("dataTable");
-  if (!table) return;
-
-  function applyDataLabels() {
-    const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.textContent.trim());
-    table.querySelectorAll("tbody tr").forEach(tr => {
-      Array.from(tr.children).forEach((td, i) => {
-        td.setAttribute("data-label", headers[i] || "");
-      });
-    });
-  }
-
-  // Run once on load and after any mutation in tbody
-  const tbody = table.querySelector("tbody");
-  if (!tbody) return;
-  const mo = new MutationObserver(() => { applyDataLabels(); });
-  mo.observe(tbody, { childList: true, subtree: true });
-  // In case table is already filled:
-  applyDataLabels();
-})();
-</script>
-</body>
+  </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
