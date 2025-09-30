@@ -147,8 +147,433 @@
       }
     </script>
     <script src="./app.js"></script>
-  </body>
+  
+<script>
+// === Formateo de "Hora local" a HH:MM (24 h) ===
+(function(){
+  function hhmmFrom(text){
+    if (!text) return text;
+    const raw = String(text).trim();
+    // Obtén la parte de hora si viene con fecha (espacio o 'T')
+    let timePart = raw.split(/[T ]/).pop();
+    // Corta zona o milisegundos
+    timePart = timePart.split(/[.,+-Z]/)[0];
+    // Asegura formato HH:MM recortando segundos si existen
+    const segs = timePart.split(':');
+    if (segs.length >= 2){
+      const hh = segs[0].padStart(2,'0').slice(-2);
+      const mm = segs[1].padStart(2,'0').slice(-2);
+      return `${hh}:${mm}`;
+    }
+    return raw;
+  }
+
+  function formatHourColumn(table){
+    if (!table) return;
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim().toLowerCase());
+    const colIndex = headers.indexOf('hora local');
+    if (colIndex === -1) return;
+
+    table.querySelectorAll('tbody tr').forEach(tr => {
+      const td = tr.children[colIndex];
+      if (!td) return;
+      const orig = td.getAttribute('data-raw') || td.textContent;
+      const val = hhmmFrom(orig);
+      td.setAttribute('data-raw', orig); // guardamos el original por si se necesita exportar
+      td.textContent = val;
+    });
+  }
+
+  function onTableReady(){
+    const table = document.getElementById('dataTable');
+    if (!table) return;
+    // Formateo inicial
+    formatHourColumn(table);
+    // Re-formatea cuando cambie el tbody (por cargas dinámicas)
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    const mo = new MutationObserver(() => formatHourColumn(table));
+    mo.observe(tbody, { childList: true, subtree: true, characterData: true });
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', onTableReady);
+  } else {
+    onTableReady();
+  }
+})();
+</script>
+
+</body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
