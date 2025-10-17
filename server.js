@@ -1,4 +1,5 @@
-// server.js (viejo) — cerrado por header secreto + anti-cache + merge de history/current (ESM)
+// server.js
+// Proxy + static server for WU PWS history (Railway-friendly)
 import express from "express";
 import dotenv from "dotenv";
 
@@ -8,10 +9,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const WU_API_KEY = process.env.WU_API_KEY;
 
-/* -------------------------------------------
- * 1) Anti-cache para /api (tal como tenías)
- * -------------------------------------------
- */
+
+
+// --- anti-cache middleware (added) ---
 app.use((req, res, next) => {
   if (req.path && req.path.startsWith("/api")) {
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -22,48 +22,12 @@ app.use((req, res, next) => {
   next();
 });
 
-/* -------------------------------------------
- * 2) Healthchecks ABIERTOS (Railway necesita esto)
- *    -> quedan fuera del candado
- * -------------------------------------------
- */
-app.get("/health", (_req, res) => res.json({ ok: true }));
-// Si usas otro endpoint de salud, añádelo igualmente antes del middleware de secreto.
-// app.get("/salud", (_req, res) => res.status(200).send("OK"));
-
-/* -------------------------------------------
- * 3) 🔒 Middleware de HEADER SECRETO
- *    - Todo lo que NO sea health queda protegido
- *    - El gateway añadirá:  x-gateway-secret: <tu-secreto>
- * -------------------------------------------
- */
-const REQUIRED_SECRET = process.env.GATEWAY_SECRET;
-const OPEN_PATHS = new Set(["/health"]); // añade "/salud" si lo usas
-
-app.use((req, res, next) => {
-  if (OPEN_PATHS.has(req.path)) return next();
-
-  if (!REQUIRED_SECRET) {
-    console.error("[viejo] Falta GATEWAY_SECRET en variables de entorno");
-    return res.status(500).send("Server misconfigured");
-  }
-  const got = req.get("x-gateway-secret");
-  if (got !== REQUIRED_SECRET) {
-    return res.status(401).send("Unauthorized");
-  }
-  next();
-});
-
-/* -------------------------------------------
- * 4) Handler combinado: history + current (hoy)
- *    (tu lógica existente, reubicada detrás del candado)
- * -------------------------------------------
- */
+// --- merged history+current handler (added) ---
 app.get("/api/wu/history", async (req, res, next) => {
   try {
     const stationId = req.query.stationId;
     const date = req.query.date;
-    if (!stationId || !date) return next(); // deja que el handler base responda 400
+    if (!stationId || !date) return next(); // let original handler deal with it
 
     const baseHist = "https://api.weather.com/v2/pws/history/all";
     const histParams = new URLSearchParams({
@@ -76,13 +40,14 @@ app.get("/api/wu/history", async (req, res, next) => {
     const r1 = await fetch(histUrl, { headers: { "Accept": "application/json" } });
     const text1 = await r1.text();
 
+    // Try to parse history JSON; tolerate raw arrays
     let histJson;
     try { histJson = JSON.parse(text1); } catch { histJson = null; }
 
+    // If not today, just return original
     const now = new Date();
     const pad = (n) => String(n).padStart(2,"0");
     const todayStr = String(now.getFullYear()) + pad(now.getMonth()+1) + pad(now.getDate());
-
     if (date !== todayStr) {
       res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.set("Pragma", "no-cache");
@@ -90,7 +55,7 @@ app.get("/api/wu/history", async (req, res, next) => {
       return histJson ? res.json(histJson) : res.type("application/json").send(text1);
     }
 
-    // Si es hoy: mezcla con "current"
+    // Fetch current observations
     const baseCur = "https://api.weather.com/v2/pws/observations/current";
     const curParams = new URLSearchParams({
       stationId,
@@ -105,6 +70,7 @@ app.get("/api/wu/history", async (req, res, next) => {
     let curJson;
     try { curJson = JSON.parse(text2); } catch { curJson = null; }
 
+    // Merge logic (works for {observations:[]} or [] formats)
     const getList = (j) => Array.isArray(j) ? j : (j && j.observations ? j.observations : []);
     const setList = (j, arr) => Array.isArray(j) ? arr : { observations: arr };
 
@@ -133,17 +99,21 @@ app.get("/api/wu/history", async (req, res, next) => {
     res.set("Expires", "0");
     return res.json(out);
   } catch (e) {
+    // If anything fails, fall back to next handler
     console.warn("merged handler fallback:", e);
     return next();
   }
 });
+// --- end merged history+current handler (added) ---
 
-/* -------------------------------------------
- * 5) Estáticos y handler base /api/wu/history (tal como tenías)
- * -------------------------------------------
- */
+// --- end anti-cache middleware (added) ---
+// Basic health
+app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// Serve frontend
 app.use(express.static("public"));
 
+// Simple API proxy
 app.get("/api/wu/history", async (req, res) => {
   try {
     const { stationId, date } = req.query;
@@ -154,9 +124,10 @@ app.get("/api/wu/history", async (req, res) => {
       return res.status(400).json({ error: "Parámetros requeridos: stationId y date (YYYYMMDD)" });
     }
 
+    // Build upstream URL
     const api = new URL("https://api.weather.com/v2/pws/history/all");
     api.searchParams.set("stationId", stationId);
-    api.searchParams.set("date", date);
+    api.searchParams.set("date", date); // YYYYMMDD
     api.searchParams.set("format", "json");
     api.searchParams.set("units", "m");
     api.searchParams.set("apiKey", WU_API_KEY);
@@ -164,7 +135,9 @@ app.get("/api/wu/history", async (req, res) => {
     const upstream = await fetch(api, { headers: { "accept": "application/json" } });
     const text = await upstream.text();
 
+    // Pass-through status & JSON/text
     res.status(upstream.status);
+    // Try to JSON.parse, fallback to text
     try {
       res.json(JSON.parse(text));
     } catch {
@@ -176,11 +149,8 @@ app.get("/api/wu/history", async (req, res) => {
   }
 });
 
-/* -------------------------------------------
- * 6) Arranque
- * -------------------------------------------
- */
 app.listen(PORT, () => {
-  console.log(`[viejo] listening on http://localhost:${PORT}`);
+  console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
