@@ -23,6 +23,28 @@ function eachDateISO(fromISO, toISO) {
 }
 function parseWUResponse(json) { return json.rows || json.observations || []; }
 
+async function fetchJsonSafe(url) {
+  const res = await fetch(url);
+  const ct = res.headers.get("content-type") || "";
+  const isJSON = ct.includes("application/json") || ct.includes("+json");
+  let payload;
+  try {
+    payload = isJSON ? await res.json() : await res.text();
+  } catch (e) {
+    // si falla el parseo json(), cae a texto
+    try { payload = await res.text(); } catch (_) { payload = ""; }
+  }
+  if (!res.ok) {
+    const msg = (isJSON ? (payload?.error || payload?.message) : String(payload || "")).trim();
+    const hint = msg ? ` (${msg})` : "";
+    throw new Error(`${res.status} ${res.statusText}${hint}`);
+  }
+  if (!isJSON) {
+    throw new Error(`Respuesta inesperada del servidor: no es JSON (${res.status} ${res.statusText})`);
+  }
+  return payload;
+}
+
 async function loadRange() {
   const stationId = getStationIdFromRails();
   const fromISO = document.getElementById("dateFrom").value;
@@ -42,9 +64,9 @@ async function loadRange() {
       const url = new URL(location.origin + "/api/wu/history");
       url.searchParams.set("stationId", stationId);
       url.searchParams.set("date", toYYYYMMDD(iso));
-      const res = await fetch(url);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || res.statusText);
+      // Log para depurar (lo verás en Network/Console)
+      console.debug("GET", url.toString());
+      const json = await fetchJsonSafe(url);
       return parseWUResponse(json);
     };
     const CONC = 3;
@@ -59,7 +81,7 @@ async function loadRange() {
     allRows.forEach(r=>{
       const tr=document.createElement("tr");
       tr.innerHTML=`
-        <td>${r.timeLocal ?? "—"}</td>
+        <td>${r.timeLocal ?? r.obsTimeLocal ?? "—"}</td>
         <td>${fmt(r.temp,1)}</td>
         <td>${fmt(r.dew,1)}</td>
         <td>${fmt(r.rh)}</td>
@@ -77,8 +99,10 @@ async function loadRange() {
   } catch(err){
     console.error(err);
     status.textContent="Error: "+err.message;
+    alert("No se pudieron obtener datos.\n\nDetalle: " + err.message + "\n\nRevisa la pestaña Network de DevTools para ver la respuesta exacta del servidor.");
   }
 }
+
 (function init(){
   const d=new Date();
   const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
