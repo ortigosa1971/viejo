@@ -1,4 +1,12 @@
 // ===== Utilidades =====
+// Justo arriba, fuera de cualquier función
+const FIXED_STATION_ID = "IALFAR32";
+
+// Y dentro de loadRange(), reemplaza esta línea:
+const stationId = document.getElementById("stationId").value.trim();
+// por esto:
+const stationId = FIXED_STATION_ID;
+
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
