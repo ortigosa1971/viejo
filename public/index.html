@@ -32,7 +32,7 @@
           <input id="dateTo" type="date" />
         </div>
 
-       
+        
 
         <div class="field align-end">
           <button id="btnLoad" class="btn primary">Cargar datos</button>
@@ -47,7 +47,26 @@
         <button class="chip" data-preset="mes" type="button">Este mes</button>
       </div>
 
-  
+      <div class="status-row">
+        <div id="status" class="status">Listo</div>
+        <div class="hint">Puedes invertir las fechas; se corrigen automáticamente.</div>
+      </div>
+    </section>
+
+    <section class="kpis">
+      <div class="kpi">
+        <div class="kpi-label">Registros</div>
+        <div class="kpi-value" id="kpiCount">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Tª mínima</div>
+        <div class="kpi-value" id="kpiMin">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Tª máxima</div>
+        <div class="kpi-value" id="kpiMax">—</div>
+      </div>
+    </section>
 
     <section class="card">
       <div class="table-wrap">
