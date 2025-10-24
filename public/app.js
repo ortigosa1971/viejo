@@ -1,15 +1,16 @@
-// ===== Utilidades básicas (Fast-Fix) =====
-// Este cliente SOLO envía ?date=YYYYMMDD. Rails debe usar ENV['WU_STATION_ID'].
+// public/app.js
 
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-const fmtNum = (x, d=0) => (x == null || Number.isNaN(x)) ? '—' : (typeof x === 'number' ? x.toFixed(d) : x);
+function toYYYYMMDD(d) {
+  // Input: 'YYYY-MM-DD' from <input type="date">
+  if (!d) return "";
+  return d.replaceAll("-", "");
+}
 
-function toYYYYMMDD(iso){ return iso?.replaceAll('-',''); }
-function parseWUResponse(json){ return json.rows || json.observations || json.data || json.history || []; }
-
+// Helpers para rango de fechas
 function eachDateISO(fromISO, toISO) {
-  const from = new Date(fromISO), to = new Date(toISO);
+  // yield fechas 'YYYY-MM-DD' inclusivas
+  const from = new Date(fromISO);
+  const to = new Date(toISO);
   const dates = [];
   for (let d = new Date(from); d <= to; d.setDate(d.getDate()+1)) {
     const yyyy = d.getFullYear();
@@ -20,113 +21,139 @@ function eachDateISO(fromISO, toISO) {
   return dates;
 }
 
-function showToast(msg, ms=2600) {
-  const el = $("#toast");
-  el.textContent = msg;
-  el.classList.add("show");
-  setTimeout(() => el.classList.remove("show"), ms);
+
+function fmt(n, digits = 0) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  const num = Number(n);
+  return num.toFixed(digits);
 }
 
-function setLoading(isLoading) {
-  $("#backdrop").classList.toggle("hidden", !isLoading);
-  $("#btnLoad").disabled = isLoading;
+function parseWUResponse(json) {
+  // Tolerate formats: {observations: []} or [] directly
+  const arr = Array.isArray(json?.observations) ? json.observations
+            : Array.isArray(json) ? json
+            : [];
+
+  return arr.map(o => {
+    // Prefer metric; fallback to top-level for some stations
+    const m = o.metric ?? o;
+
+    const tLocal = o.obsTimeLocal ?? o.obsTimeUtc ?? (o.epoch ? new Date(o.epoch * 1000).toISOString() : "");
+
+    const temp = m?.temp ?? m?.tempAvg ?? null;
+    const dew  = m?.dewpt ?? m?.dewptAvg ?? null;
+    const rh   = m?.humidity ?? o.humidityAvg ?? null;
+    const pres = m?.pressure ?? m?.pressureMax ?? m?.pressureMin ?? null;
+    const w    = m?.windspeed ?? m?.windspeedAvg ?? null;
+    const gust = m?.windgust ?? m?.windgustHigh ?? null;
+    const dir  = m?.winddir ?? o.winddirAvg ?? null;
+
+    // --- PRECIP: split columns clearly ---
+    const precipRate  = (m?.precipRate  ?? o.precipRate  ?? null);
+    const precipTotal = (m?.precipTotal ?? o.precipTotal ?? null);
+
+    const uv  = o.uvHigh ?? o.uv ?? m?.uv ?? null;
+    const rad = o.solarRadiationHigh ?? o.solarRadiation ?? m?.solarRadiation ?? null;
+
+    return {
+      timeLocal: tLocal,
+      temp, dew, rh, pres, w, gust, dir,
+      precipRate, precipTotal,
+      uv, rad,
+      // for min/max if present
+      tempLow: m?.tempLow, tempHigh: m?.tempHigh,
+    };
+  });
 }
 
-async function fetchJsonSafe(url) {
-  console.debug("[fetch] GET", url.toString ? url.toString() : url);
-  const res = await fetch(url, { credentials: 'same-origin' });
-  const ct = res.headers.get("content-type") || "";
-  const isJSON = ct.includes("application/json") || ct.includes("+json");
-  let payload;
-  try { payload = isJSON ? await res.json() : await res.text(); }
-  catch { try { payload = await res.text(); } catch { payload = ""; } }
-  if (!res.ok) {
-    const msg = isJSON ? (payload?.error || payload?.message) : String(payload || "").trim();
-    throw new Error(`${res.status} ${res.statusText}${msg ? ` (${msg})` : ""}`);
+
+async function loadData() {
+  const stationId = document.getElementById("stationId").value.trim();
+  const fromISO = document.getElementById("dateFrom").value;
+  const toISO   = document.getElementById("dateTo").value || fromISO;
+
+  const status = document.getElementById("status");
+  status.textContent = "Cargando…";
+
+  if (!fromISO) {
+    status.textContent = "El campo 'Desde' es obligatorio.";
+    return;
   }
-  if (!isJSON) throw new Error(`Respuesta inesperada (no JSON) ${res.status} ${res.statusText}`);
-  return payload;
-}
 
-// ===== Datos =====
-async function fetchDay(iso) {
-  const url = new URL("/api/wu/history", window.location.origin);
-  url.searchParams.set("date", toYYYYMMDD(iso)); // 👈 solo date
-  const json = await fetchJsonSafe(url);
-  return parseWUResponse(json);
-}
-
-async function loadRange(ev) {
-  if (ev) ev.preventDefault();
-  const fromISO = $("#dateFrom").value;
-  const toISO   = $("#dateTo").value || fromISO;
-
-  if (!fromISO) { showToast("Selecciona la fecha 'Desde'"); return; }
-
+  // Normalizar orden
   let startISO = fromISO, endISO = toISO;
-  if (new Date(endISO) < new Date(startISO)) [startISO, endISO] = [endISO, startISO];
-
-  setLoading(true);
-  $("#status").textContent = "Cargando…";
-  $("#btnCSV").disabled = true;
+  if (new Date(endISO) < new Date(startISO)) {
+    const tmp = startISO; startISO = endISO; endISO = tmp;
+  }
 
   try {
     const dates = eachDateISO(startISO, endISO);
-    const all = [];
+    const allRows = [];
+
+    // Descargas en paralelo con límite sencillo
+    const fetchOne = async (iso) => {
+      const date = toYYYYMMDD(iso);
+      const url = new URL(location.origin + "/api/wu/history");
+      url.searchParams.set("stationId", stationId);
+      url.searchParams.set("date", date);
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || res.statusText);
+      return parseWUResponse(json);
+    };
+
+    const chunks = [];
     const CONC = 3;
-    for (let i=0; i<dates.length; i+=CONC) {
-      const chunk = dates.slice(i, i+CONC);
-      const parts = await Promise.all(chunk.map(d => fetchDay(d)));
-      parts.forEach(rows => all.push(...rows));
-      $("#status").textContent = `Cargando… ${all.length} registros`;
+    for (let i=0; i<dates.length; i+=CONC) chunks.push(dates.slice(i,i+CONC));
+    for (const chunk of chunks) {
+      const parts = await Promise.all(chunk.map(fetchOne));
+      parts.forEach(r => allRows.push(...r));
+      status.textContent = `Cargando… ${allRows.length} registros`;
     }
 
-    renderTable(all);
-    computeKPIs(all);
-    $("#status").textContent = `OK (${all.length} registros)`;
-    $("#btnCSV").disabled = all.length === 0;
+    // Pintar tabla y KPIs (reutilizamos lógica existente)
+    const tbody = document.querySelector("#dataTable tbody");
+    tbody.innerHTML = "";
+
+    let minT = Infinity, maxT = -Infinity;
+
+    allRows.forEach(r => {
+      const t = typeof r.temp === "number" ? r.temp : null;
+      if (typeof t === "number") {
+        if (t < minT) minT = t;
+        if (t > maxT) maxT = t;
+      }
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${r.ti
+function toCSV() {
+  const rows = Array.from(document.querySelectorAll("#dataTable tbody tr"))
+    .map(tr => Array.from(tr.children).map(td => `"${(td.textContent||"").replaceAll('"','""')}"`))
+    .map(cols => cols.join(";"));
+
+  const head = Array.from(document.querySelectorAll("#dataTable thead th"))
+    .map(th => `"${(th.textContent||"").replaceAll('"','""')}"`)
+    .join(";");
+
+  const csv = [head, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  const fromISO = document.getElementById("dateFrom").value;
+  const toISO   = document.getElementById("dateTo").value || fromISO;
+  a.href = URL.createObjectURL(blob);
+  a.download = `wu_${fromISO}_a_${toISO}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+xT.toFixed(1)} °C` : "—";
+
+    status.textContent = "OK";
   } catch (err) {
     console.error(err);
-    $("#status").textContent = "Error";
-    showToast(err.message || "Error al cargar datos");
-  } finally {
-    setLoading(false);
+    status.textContent = "Error: " + err.message;
   }
 }
 
-function renderTable(rows) {
-  const tb = $("#dataTable tbody");
-  tb.innerHTML = "";
-  for (const r of rows) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r.timeLocal ?? r.obsTimeLocal ?? r.obsTime ?? "—"}</td>
-      <td>${fmtNum(r.temp,1)}</td>
-      <td>${fmtNum(r.dew,1)}</td>
-      <td>${fmtNum(r.rh)}</td>
-      <td>${fmtNum(r.pres,1)}</td>
-      <td>${fmtNum(r.w,1)}</td>
-      <td>${fmtNum(r.gust,1)}</td>
-      <td>${fmtNum(r.dir)}</td>
-      <td>${fmtNum(r.precipRate,2)}</td>
-      <td>${fmtNum(r.precipTotal,2)}</td>
-      <td>${fmtNum(r.uv,1)}</td>
-      <td>${fmtNum(r.rad,1)}</td>
-    `;
-    tb.appendChild(tr);
-  }
-}
-
-function computeKPIs(rows) {
-  let count = rows.length, minT = Infinity, maxT = -Infinity;
-  for (const r of rows) {
-    const t = (typeof r.temp === "number") ? r.temp : null;
-    if (t != null) { if (t < minT) minT = t; if (t > maxT) maxT = t; }
-  }
-  $("#kpiCount").textContent = String(count);
-  $("#kpiMin").textContent = Number.isFinite(minT) ? `${minT.toFixed(1)} °C` : "—";
-  $("#kpiMax").textContent = Number.isFinite(maxT) ? `${maxT.toFixed(1)} °C` : "—";
-}
 
 function toCSV() {
   const rows = Array.from(document.querySelectorAll("#dataTable tbody tr"))
@@ -140,49 +167,59 @@ function toCSV() {
   const csv = [head, ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
-  const fromISO = $("#dateFrom").value;
-  const toISO   = $("#dateTo").value || fromISO;
+  const today = new Date().toISOString().slice(0,10);
   a.href = URL.createObjectURL(blob);
-  a.download = `wu_${fromISO}_a_${toISO}.csv`;
+  a.download = `wu_${today}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
 
-function applyPreset(name) {
-  const today = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+document.getElementById("loadBtn").addEventListener("click", loadData);
+document.getElementById("csvBtn").addEventListener("click", toCSV);
 
-  let a = new Date(today), b = new Date(today);
-  if (name === "ayer") { a.setDate(a.getDate()-1); b.setDate(b.getDate()-1); }
-  if (name === "ult7") { a.setDate(a.getDate()-6); }
-  if (name === "mes")  { a = new Date(today.getFullYear(), today.getMonth(), 1); }
+// Pre-cargar hoy y estación por defecto
 
-  $("#dateFrom").value = toISO(a);
-  $("#dateTo").value   = toISO(b);
-}
 
-function init(){
-  console.debug("[init] binding listeners");
-  $("#btnLoad").setAttribute("type","button");
-  $("#btnLoad").addEventListener("click", loadRange);
-  $("#btnCSV").addEventListener("click", toCSV);
-  $("#controls").addEventListener("submit", loadRange);
-  $$(".chip").forEach(ch => ch.addEventListener("click", () => applyPreset(ch.dataset.preset)));
 
-  const d=new Date(), pad=n=>String(n).padStart(2,'0');
-  const today=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  $("#dateFrom").value = today;
-  $("#dateTo").value   = today;
+// --- cache buster for /api calls (added) ---
+(function () {
+  if (window.__apiCacheBusterInstalled) return;
+  window.__apiCacheBusterInstalled = true;
+  const _origFetch = window.fetch;
+  window.fetch = function (input, init) {
+    init = init || {};
+    try {
+      let urlStr = typeof input === "string" ? input : input.url;
+      const u = new URL(urlStr, window.location.origin);
+      if (u.pathname.startsWith("/api")) {
+        u.searchParams.set("_", String(Date.now())); // cache-busting query
+        init.cache = "no-store";
+        init.headers = Object.assign({}, init.headers || {}, {
+          "Cache-Control": "no-cache"
+        });
+        input = u.toString();
+      }
+    } catch (e) { /* ignore */ }
+    return _origFetch.call(this, input, init);
+  };
+})();
+// --- end cache buster (added) ---
 
-  $("#helpLink").addEventListener("click", (e) => {
-    e.preventDefault();
-    showToast("Elige rango y pulsa Cargar. Exporta con CSV.");
-  });
 
-  console.debug("[init] ready");
-}
 
-document.addEventListener("DOMContentLoaded", init);
-document.addEventListener("turbo:load", init);
+
+
+
+// Pre-cargar hoy en ambos campos
+(function init() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const today = `${yyyy}-${mm}-${dd}`;
+  const fromEl = document.getElementById("dateFrom");
+  const toEl = document.getElementById("dateTo");
+  if (fromEl) fromEl.value = today;
+  if (toEl) toEl.value = today;
+})();
 
