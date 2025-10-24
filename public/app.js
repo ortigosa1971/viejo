@@ -1,113 +1,196 @@
+// ===== Utilidades =====
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+const fmtNum = (x, d=0) => (x == null || Number.isNaN(x)) ? '—' : (typeof x === 'number' ? x.toFixed(d) : x);
+
 function getStationIdFromRails() {
   const meta = document.querySelector('meta[name="wu-station-id"]');
   return meta?.content || "IALFAR32";
 }
+function toYYYYMMDD(iso) { return iso?.replaceAll('-', ''); }
+function parseWUResponse(json) { return json.rows || json.observations || json.data || json.history || []; }
 
-function toYYYYMMDD(iso) { return iso.replaceAll('-', ''); }
-function fmt(x, d=0) {
-  if (x == null || Number.isNaN(x)) return '—';
-  if (typeof x !== 'number') return x;
-  return x.toFixed(d);
-}
 function eachDateISO(fromISO, toISO) {
-  const from = new Date(fromISO);
-  const to = new Date(toISO);
+  const from = new Date(fromISO), to = new Date(toISO);
   const dates = [];
-  for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(from); d <= to; d.setDate(d.getDate()+1)) {
     const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
     dates.push(`${yyyy}-${mm}-${dd}`);
   }
   return dates;
 }
-function parseWUResponse(json) { return json.rows || json.observations || []; }
 
+function showToast(msg, ms=2600) {
+  const el = $("#toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), ms);
+}
+
+function setLoading(isLoading) {
+  $("#backdrop").classList.toggle("hidden", !isLoading);
+  $("#btnLoad").disabled = isLoading;
+}
+
+// ---- fetch robusto ----
 async function fetchJsonSafe(url) {
-  const res = await fetch(url);
+  console.debug("[fetch] GET", url.toString ? url.toString() : url);
+  const res = await fetch(url, { credentials: 'same-origin' });
   const ct = res.headers.get("content-type") || "";
   const isJSON = ct.includes("application/json") || ct.includes("+json");
   let payload;
-  try {
-    payload = isJSON ? await res.json() : await res.text();
-  } catch (e) {
-    // si falla el parseo json(), cae a texto
-    try { payload = await res.text(); } catch (_) { payload = ""; }
-  }
+  try { payload = isJSON ? await res.json() : await res.text(); }
+  catch { try { payload = await res.text(); } catch { payload = ""; } }
   if (!res.ok) {
-    const msg = (isJSON ? (payload?.error || payload?.message) : String(payload || "")).trim();
-    const hint = msg ? ` (${msg})` : "";
-    throw new Error(`${res.status} ${res.statusText}${hint}`);
+    const msg = isJSON ? (payload?.error || payload?.message) : String(payload || "").trim();
+    throw new Error(`${res.status} ${res.statusText}${msg ? ` (${msg})` : ""}`);
   }
-  if (!isJSON) {
-    throw new Error(`Respuesta inesperada del servidor: no es JSON (${res.status} ${res.statusText})`);
-  }
+  if (!isJSON) throw new Error(`Respuesta inesperada (no JSON) ${res.status} ${res.statusText}`);
   return payload;
 }
 
-async function loadRange() {
-  const stationId = getStationIdFromRails();
-  const fromISO = document.getElementById("dateFrom").value;
-  const toISO = document.getElementById("dateTo").value || fromISO;
-  const status = document.getElementById("status");
+// ===== Datos =====
+async function fetchDay(stationId, iso) {
+  const url = new URL("/api/wu/history", window.location.origin);
+  url.searchParams.set("stationId", stationId);
+  url.searchParams.set("date", toYYYYMMDD(iso));
+  const json = await fetchJsonSafe(url);
+  return parseWUResponse(json);
+}
 
-  if (!fromISO) { status.textContent = "El campo 'Desde' es obligatorio."; return; }
-  status.textContent = "Cargando…";
+async function loadRange(ev) {
+  if (ev) ev.preventDefault();
+  const stationId = getStationIdFromRails();
+  const fromISO = $("#dateFrom").value;
+  const toISO   = $("#dateTo").value || fromISO;
+
+  if (!fromISO) { showToast("Selecciona la fecha 'Desde'"); return; }
 
   let startISO = fromISO, endISO = toISO;
   if (new Date(endISO) < new Date(startISO)) [startISO, endISO] = [endISO, startISO];
 
+  setLoading(true);
+  $("#status").textContent = "Cargando…";
+  $("#btnCSV").disabled = true;
+
   try {
     const dates = eachDateISO(startISO, endISO);
-    const allRows = [];
-    const fetchOne = async (iso) => {
-      const url = new URL(location.origin + "/api/wu/history");
-      url.searchParams.set("stationId", stationId);
-      url.searchParams.set("date", toYYYYMMDD(iso));
-      // Log para depurar (lo verás en Network/Console)
-      console.debug("GET", url.toString());
-      const json = await fetchJsonSafe(url);
-      return parseWUResponse(json);
-    };
+    const all = [];
+
+    // Descargas en paralelo por lotes
     const CONC = 3;
-    for (let i=0;i<dates.length;i+=CONC){
-      const chunk = dates.slice(i,i+CONC);
-      const parts = await Promise.all(chunk.map(fetchOne));
-      parts.forEach(r=>allRows.push(...r));
-      status.textContent = `Cargando… ${allRows.length} registros`;
+    for (let i=0; i<dates.length; i+=CONC) {
+      const chunk = dates.slice(i, i+CONC);
+      const parts = await Promise.all(chunk.map(d => fetchDay(stationId, d)));
+      parts.forEach(rows => all.push(...rows));
+      $("#status").textContent = `Cargando… ${all.length} registros`;
     }
-    const tbody=document.querySelector("#dataTable tbody");
-    tbody.innerHTML="";
-    allRows.forEach(r=>{
-      const tr=document.createElement("tr");
-      tr.innerHTML=`
-        <td>${r.timeLocal ?? r.obsTimeLocal ?? "—"}</td>
-        <td>${fmt(r.temp,1)}</td>
-        <td>${fmt(r.dew,1)}</td>
-        <td>${fmt(r.rh)}</td>
-        <td>${fmt(r.pres,1)}</td>
-        <td>${fmt(r.w,1)}</td>
-        <td>${fmt(r.gust,1)}</td>
-        <td>${fmt(r.dir)}</td>
-        <td>${fmt(r.precipRate,2)}</td>
-        <td>${fmt(r.precipTotal,2)}</td>
-        <td>${fmt(r.uv,1)}</td>
-        <td>${fmt(r.rad,1)}</td>`;
-      tbody.appendChild(tr);
-    });
-    status.textContent=`OK (${allRows.length} registros)`;
-  } catch(err){
+
+    renderTable(all);
+    computeKPIs(all);
+    $("#status").textContent = `OK (${all.length} registros)`;
+    $("#btnCSV").disabled = all.length === 0;
+  } catch (err) {
     console.error(err);
-    status.textContent="Error: "+err.message;
-    alert("No se pudieron obtener datos.\n\nDetalle: " + err.message + "\n\nRevisa la pestaña Network de DevTools para ver la respuesta exacta del servidor.");
+    $("#status").textContent = "Error";
+    showToast(err.message || "Error al cargar datos");
+  } finally {
+    setLoading(false);
   }
 }
 
-(function init(){
-  const d=new Date();
-  const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
-  const today=`${yyyy}-${mm}-${dd}`;
-  document.getElementById("dateFrom").value=today;
-  document.getElementById("dateTo").value=today;
-  document.getElementById("btnLoad").addEventListener("click",loadRange);
-})();
+function renderTable(rows) {
+  const tb = $("#dataTable tbody");
+  tb.innerHTML = "";
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.timeLocal ?? r.obsTimeLocal ?? r.obsTime ?? "—"}</td>
+      <td>${fmtNum(r.temp,1)}</td>
+      <td>${fmtNum(r.dew,1)}</td>
+      <td>${fmtNum(r.rh)}</td>
+      <td>${fmtNum(r.pres,1)}</td>
+      <td>${fmtNum(r.w,1)}</td>
+      <td>${fmtNum(r.gust,1)}</td>
+      <td>${fmtNum(r.dir)}</td>
+      <td>${fmtNum(r.precipRate,2)}</td>
+      <td>${fmtNum(r.precipTotal,2)}</td>
+      <td>${fmtNum(r.uv,1)}</td>
+      <td>${fmtNum(r.rad,1)}</td>
+    `;
+    tb.appendChild(tr);
+  }
+}
+
+function computeKPIs(rows) {
+  let count = rows.length, minT = Infinity, maxT = -Infinity;
+  for (const r of rows) {
+    const t = (typeof r.temp === "number") ? r.temp : null;
+    if (t != null) { if (t < minT) minT = t; if (t > maxT) maxT = t; }
+  }
+  $("#kpiCount").textContent = String(count);
+  $("#kpiMin").textContent = Number.isFinite(minT) ? `${minT.toFixed(1)} °C` : "—";
+  $("#kpiMax").textContent = Number.isFinite(maxT) ? `${maxT.toFixed(1)} °C` : "—";
+}
+
+function toCSV() {
+  const rows = Array.from(document.querySelectorAll("#dataTable tbody tr"))
+    .map(tr => Array.from(tr.children).map(td => `"${(td.textContent||"").replaceAll('"','""')}"`))
+    .map(cols => cols.join(";"));
+
+  const head = Array.from(document.querySelectorAll("#dataTable thead th"))
+    .map(th => `"${(th.textContent||"").replaceAll('"','""')}"`)
+    .join(";");
+
+  const csv = [head, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  const fromISO = $("#dateFrom").value;
+  const toISO   = $("#dateTo").value || fromISO;
+  a.href = URL.createObjectURL(blob);
+  a.download = `wu_${fromISO}_a_${toISO}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function applyPreset(name) {
+  const today = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  let a = new Date(today), b = new Date(today);
+  if (name === "ayer") { a.setDate(a.getDate()-1); b.setDate(b.getDate()-1); }
+  if (name === "ult7") { a.setDate(a.getDate()-6); }
+  if (name === "mes")  { a = new Date(today.getFullYear(), today.getMonth(), 1); }
+
+  $("#dateFrom").value = toISO(a);
+  $("#dateTo").value   = toISO(b);
+}
+
+function init(){
+  console.debug("[init] binding listeners");
+  $("#btnLoad").setAttribute("type","button");
+  $("#btnLoad").addEventListener("click", loadRange);
+  $("#btnCSV").addEventListener("click", toCSV);
+  $("#controls").addEventListener("submit", loadRange);
+  $$(".chip").forEach(ch => ch.addEventListener("click", () => applyPreset(ch.dataset.preset)));
+
+  const d=new Date(), pad=n=>String(n).padStart(2,'0');
+  const today=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  $("#dateFrom").value = today;
+  $("#dateTo").value   = today;
+
+  $("#helpLink").addEventListener("click", (e) => {
+    e.preventDefault();
+    showToast("Elige rango y pulsa Cargar. Exporta con CSV.");
+  });
+
+  console.debug("[init] ready");
+}
+
+// Soporta Rails Turbo/Turbolinks
+document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("turbo:load", init);
