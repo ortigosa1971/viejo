@@ -3,60 +3,100 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WU Rango de Fechas (demo)</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
-    .row { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; }
-    label { display: block; font-size: 12px; color: #444; margin-bottom: 4px; }
-    input[type="date"] { padding: 6px 8px; font-size: 14px; }
-    button { padding: 8px 12px; font-size: 14px; cursor: pointer; }
-    #status { margin-left: 12px; font-size: 14px; color: #333; }
-    table { border-collapse: collapse; margin-top: 16px; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 13px; }
-    th { background: #f6f6f6; }
-  </style>
+  <title>Histórico WU · Rango de fechas</title>
+  <link rel="stylesheet" href="./app.css" />
 </head>
 <body>
-  <h1>Histórico por rango (demo)</h1>
-  <div class="row">
-    <div>
-      <label for="dateFrom">Desde</label>
-      <input id="dateFrom" type="date" />
-    </div>
-    <div>
-      <label for="dateTo">Hasta</label>
-      <input id="dateTo" type="date" />
-    </div>
-    <div>
-      <label for="stationId">Station ID</label>
-      <input id="stationId" type="text" value="ESTACION_DEMO" />
-    </div>
-    <div>
-      <button id="btnLoad">Cargar</button>
-      <button id="btnCSV">CSV</button>
-      <span id="status"></span>
-    </div>
-  </div>
+  <header class="topbar">
+    <div class="brand">🌤️ Histórico WU</div>
+    <nav class="actions">
+      <button id="btnCSV" class="btn secondary" disabled>Exportar CSV</button>
+      <a id="helpLink" class="link" href="#" title="Ayuda">Ayuda</a>
+    </nav>
+  </header>
 
-  <table id="dataTable">
-    <thead>
-      <tr>
-        <th>Hora local</th>
-        <th>Temp</th>
-        <th>Dew</th>
-        <th>RH</th>
-        <th>Pres</th>
-        <th>Viento</th>
-        <th>Racha</th>
-        <th>Dir</th>
-        <th>PrecipRate</th>
-        <th>PrecipTotal</th>
-        <th>UV</th>
-        <th>Radiación</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <main class="container">
+    <section class="card">
+      <div class="controls">
+        <div class="field">
+          <label for="stationId">Station ID</label>
+          <input id="stationId" type="text" placeholder="p.ej. IXXXMADR1234">
+        </div>
+
+        <div class="field">
+          <label for="dateFrom">Desde</label>
+          <input id="dateFrom" type="date">
+        </div>
+
+        <div class="field">
+          <label for="dateTo">Hasta</label>
+          <input id="dateTo" type="date">
+        </div>
+
+        <div class="field">
+          <label>&nbsp;</label>
+          <button id="btnLoad" class="btn primary">Cargar datos</button>
+        </div>
+      </div>
+
+      <div class="presets">
+        <span>Atajos:</span>
+        <button class="chip" data-preset="hoy">Hoy</button>
+        <button class="chip" data-preset="ayer">Ayer</button>
+        <button class="chip" data-preset="ult7">Últimos 7 días</button>
+        <button class="chip" data-preset="mes">Este mes</button>
+      </div>
+
+      <div class="status-row">
+        <div class="status" id="status">Listo</div>
+        <div class="hint">Consejo: puedes invertir las fechas; se corrigen automáticamente.</div>
+      </div>
+    </section>
+
+    <section class="kpis">
+      <div class="kpi">
+        <div class="kpi-label">Registros</div>
+        <div class="kpi-value" id="kpiCount">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Tª mínima</div>
+        <div class="kpi-value" id="kpiMin">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Tª máxima</div>
+        <div class="kpi-value" id="kpiMax">—</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="table-wrap">
+        <table id="dataTable">
+          <thead>
+            <tr>
+              <th>Hora local</th>
+              <th>Temp</th>
+              <th>Dew</th>
+              <th>RH</th>
+              <th>Pres</th>
+              <th>Viento</th>
+              <th>Racha</th>
+              <th>Dir</th>
+              <th>PrecipRate</th>
+              <th>PrecipTotal</th>
+              <th>UV</th>
+              <th>Radiación</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="backdrop" class="backdrop hidden">
+    <div class="spinner" aria-label="Cargando" role="status"></div>
+  </div>
 
   <script src="./app.js"></script>
 </body>
