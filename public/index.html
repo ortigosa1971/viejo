@@ -4,6 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Histórico WU · Rango de fechas</title>
+
+  <!-- Rails inyecta la estación desde ENV['WU_STATION_ID'] -->
+  <meta name="wu-station-id" content="<%= ENV.fetch('WU_STATION_ID', 'IALFAR32') %>">
+
   <link rel="stylesheet" href="./app.css" />
 </head>
 <body>
@@ -22,10 +26,12 @@
           <label for="dateFrom">Desde</label>
           <input id="dateFrom" type="date" />
         </div>
+
         <div class="field">
           <label for="dateTo">Hasta</label>
           <input id="dateTo" type="date" />
         </div>
+
         <div class="field">
           <label>&nbsp;</label>
           <button id="btnLoad" type="button" class="btn primary">Cargar datos</button>
@@ -94,7 +100,6 @@
   <script src="./app.js"></script>
 </body>
 </html>
-
 
 
 
