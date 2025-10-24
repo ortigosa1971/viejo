@@ -1,0 +1,4 @@
+# config/routes.rb (añade dentro del bloque Rails.application.routes.draw do)
+namespace :api do
+  get 'wu/history', to: 'wu#history'
+end
