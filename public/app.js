@@ -29,7 +29,7 @@ function parseWUResponse(json) {
 // ===== Lógica principal =====
 async function loadData() {
   const stationEl = document.getElementById("stationId");
-const stationId = (stationEl?.value || "ESTACION_POR_DEFECTO").trim();
+const stationId = (stationEl?.value || "IALFAR32").trim();
   const fromISO = document.getElementById("dateFrom").value;
   const toISO   = document.getElementById("dateTo").value || fromISO;
 
@@ -56,15 +56,18 @@ const stationId = (stationEl?.value || "ESTACION_POR_DEFECTO").trim();
       // Aquí simulamos una respuesta con datos dummy.
       await new Promise(r => setTimeout(r, 150)); // simular latencia
       const rows = [];
-      for (let h = 0; h < 24; h++) {
+      for (let i=0;i<3;i++) {
         rows.push({
-          timeLocal: `${iso} ${String(h).padStart(2,'0')}:00`,
+          timeLocal: `${iso} ${String(8+i).padStart(2,'0')}:00`,
           temp: 20 + Math.random()*5,
           dew:  10 + Math.random()*3,
           rh:   50 + Math.round(Math.random()*20),
           pres: 1010 + Math.random()*5,
           w:    5 + Math.random()*3,
           gust: 7 + Math.random()*5,
+          dir:  180,
+          precipRate: Math.random() < 0.2 ? Math.random() : 0,
+          precipTotal: Math.random() < 0.2 ? Math.random()*5 : 0,
           uv:   Math.random()*6,
           rad:  300 + Math.random()*200
         });
@@ -142,4 +145,3 @@ function toCSV() {
   document.getElementById("btnLoad").addEventListener("click", loadData);
   document.getElementById("btnCSV").addEventListener("click", toCSV);
 })();
-
