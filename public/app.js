@@ -28,7 +28,8 @@ function parseWUResponse(json) {
 
 // ===== Lógica principal =====
 async function loadData() {
-  const stationId = document.getElementById("stationId").value.trim();
+  const stationEl = document.getElementById("stationId");
+const stationId = (stationEl?.value || "ESTACION_POR_DEFECTO").trim();
   const fromISO = document.getElementById("dateFrom").value;
   const toISO   = document.getElementById("dateTo").value || fromISO;
 
@@ -144,3 +145,4 @@ function toCSV() {
   document.getElementById("btnLoad").addEventListener("click", loadData);
   document.getElementById("btnCSV").addEventListener("click", toCSV);
 })();
+
