@@ -6,6 +6,22 @@ function toYYYYMMDD(d) {
   return d.replaceAll("-", "");
 }
 
+// Helpers para rango de fechas
+function eachDateISO(fromISO, toISO) {
+  // yield fechas 'YYYY-MM-DD' inclusivas
+  const from = new Date(fromISO);
+  const to = new Date(toISO);
+  const dates = [];
+  for (let d = new Date(from); d <= to; d.setDate(d.getDate()+1)) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    dates.push(`${yyyy}-${mm}-${dd}`);
+  }
+  return dates;
+}
+
+
 function fmt(n, digits = 0) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   const num = Number(n);
@@ -50,60 +66,86 @@ function parseWUResponse(json) {
   });
 }
 
+
 async function loadData() {
   const stationId = document.getElementById("stationId").value.trim();
-  const dateISO = document.getElementById("date").value; // YYYY-MM-DD
-  const date = toYYYYMMDD(dateISO);
+  const fromISO = document.getElementById("dateFrom").value;
+  const toISO   = document.getElementById("dateTo").value || fromISO;
 
   const status = document.getElementById("status");
   status.textContent = "Cargando…";
 
-  try {
-    const url = new URL(location.origin + "/api/wu/history");
-    url.searchParams.set("stationId", stationId);
-    url.searchParams.set("date", date);
+  if (!fromISO) {
+    status.textContent = "El campo 'Desde' es obligatorio.";
+    return;
+  }
 
-    const res = await fetch(url);
-    const json = await res.json();
-    if (!res.ok) {
-      throw new Error(json?.error || JSON.stringify(json).slice(0,200));
+  // Normalizar orden
+  let startISO = fromISO, endISO = toISO;
+  if (new Date(endISO) < new Date(startISO)) {
+    const tmp = startISO; startISO = endISO; endISO = tmp;
+  }
+
+  try {
+    const dates = eachDateISO(startISO, endISO);
+    const allRows = [];
+
+    // Descargas en paralelo con límite sencillo
+    const fetchOne = async (iso) => {
+      const date = toYYYYMMDD(iso);
+      const url = new URL(location.origin + "/api/wu/history");
+      url.searchParams.set("stationId", stationId);
+      url.searchParams.set("date", date);
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || res.statusText);
+      return parseWUResponse(json);
+    };
+
+    const chunks = [];
+    const CONC = 3;
+    for (let i=0; i<dates.length; i+=CONC) chunks.push(dates.slice(i,i+CONC));
+    for (const chunk of chunks) {
+      const parts = await Promise.all(chunk.map(fetchOne));
+      parts.forEach(r => allRows.push(...r));
+      status.textContent = `Cargando… ${allRows.length} registros`;
     }
 
-    const rows = parseWUResponse(json);
+    // Pintar tabla y KPIs (reutilizamos lógica existente)
     const tbody = document.querySelector("#dataTable tbody");
     tbody.innerHTML = "";
 
-    let minT = +Infinity, maxT = -Infinity;
+    let minT = Infinity, maxT = -Infinity;
 
-    rows.forEach(r => {
-      const t = r.temp ?? r.tempLow ?? r.tempHigh;
+    allRows.forEach(r => {
+      const t = typeof r.temp === "number" ? r.temp : null;
       if (typeof t === "number") {
         if (t < minT) minT = t;
         if (t > maxT) maxT = t;
       }
-
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${r.timeLocal ?? "—"}</td>
-        <td>${fmt(r.temp,1)}</td>
-        <td>${fmt(r.dew,1)}</td>
-        <td>${fmt(r.rh)}</td>
-        <td>${fmt(r.pres,1)}</td>
-        <td>${fmt(r.w,1)}</td>
-        <td>${fmt(r.gust,1)}</td>
-        <td>${fmt(r.dir)}</td>
-        <td>${fmt(r.precipRate,2)}</td>
-        <td>${fmt(r.precipTotal,2)}</td>
-        <td>${fmt(r.uv,1)}</td>
-        <td>${fmt(r.rad,1)}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+        <td>${r.ti
+function toCSV() {
+  const rows = Array.from(document.querySelectorAll("#dataTable tbody tr"))
+    .map(tr => Array.from(tr.children).map(td => `"${(td.textContent||"").replaceAll('"','""')}"`))
+    .map(cols => cols.join(";"));
 
-    // KPIs
-    document.getElementById("kpiCount").textContent = rows.length.toString();
-    document.getElementById("kpiMin").textContent = Number.isFinite(minT) ? `${minT.toFixed(1)} °C` : "—";
-    document.getElementById("kpiMax").textContent = Number.isFinite(maxT) ? `${maxT.toFixed(1)} °C` : "—";
+  const head = Array.from(document.querySelectorAll("#dataTable thead th"))
+    .map(th => `"${(th.textContent||"").replaceAll('"','""')}"`)
+    .join(";");
+
+  const csv = [head, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  const fromISO = document.getElementById("dateFrom").value;
+  const toISO   = document.getElementById("dateTo").value || fromISO;
+  a.href = URL.createObjectURL(blob);
+  a.download = `wu_${fromISO}_a_${toISO}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+xT.toFixed(1)} °C` : "—";
 
     status.textContent = "OK";
   } catch (err) {
@@ -111,6 +153,7 @@ async function loadData() {
     status.textContent = "Error: " + err.message;
   }
 }
+
 
 function toCSV() {
   const rows = Array.from(document.querySelectorAll("#dataTable tbody tr"))
@@ -135,13 +178,7 @@ document.getElementById("loadBtn").addEventListener("click", loadData);
 document.getElementById("csvBtn").addEventListener("click", toCSV);
 
 // Pre-cargar hoy y estación por defecto
-(function init() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
-  document.getElementById("date").value = `${yyyy}-${mm}-${dd}`;
-})();
+
 
 
 // --- cache buster for /api calls (added) ---
@@ -169,5 +206,21 @@ document.getElementById("csvBtn").addEventListener("click", toCSV);
 // --- end cache buster (added) ---
 
 
+
+
+
+
+// Pre-cargar hoy en ambos campos
+(function init() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const today = `${yyyy}-${mm}-${dd}`;
+  const fromEl = document.getElementById("dateFrom");
+  const toEl = document.getElementById("dateTo");
+  if (fromEl) fromEl.value = today;
+  if (toEl) toEl.value = today;
+})();
 
 
