@@ -1,105 +1,1260 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Histórico WU · Rango de fechas</title>
-
-  <!-- Rails inyecta la estación desde ENV['WU_STATION_ID'] -->
-  <meta name="wu-station-id" content="<%= ENV.fetch('WU_STATION_ID', 'IALFAR32') %>">
-
-  <link rel="stylesheet" href="./app.css" />
-</head>
-<body>
-  <header class="topbar">
-    <div class="brand">🌤️ Histórico WU</div>
-    <nav class="actions">
-      <button id="btnCSV" class="btn secondary" disabled>Exportar CSV</button>
-      <a id="helpLink" class="link" href="#" title="Ayuda">Ayuda</a>
-    </nav>
-  </header>
-
-  <main class="container">
-    <section class="card">
-      <form id="controls" class="controls" onsubmit="return false;">
-        <div class="field">
-          <label for="dateFrom">Desde</label>
-          <input id="dateFrom" type="date" />
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HISTORICO ALFARNATE</title>
+    <style>
+      :root { --bg:#0b0f14; --card:#121821; --ink:#e8eef7; --muted:#9fb0c6; --accent:#6ec1ff; --line:#223042; }
+      * { box-sizing: border-box; }
+      body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'; background:var(--bg); color:var(--ink); }
+      header { padding: 20px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #0b0f14, #0b0f14e0); position: sticky; top:0; z-index: 5; }
+      h1 { margin:0; font-size: clamp(20px, 3vw, 28px); text-align:center; }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+      .form { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; }
+      label { font-size: 12px; color: var(--muted); display:block; margin-bottom:6px; }
+      input, button { width:100%; padding:10px 12px; border-radius: 10px; border:1px solid var(--line); background:#0d131b; color:var(--ink); }
+      input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+      button { cursor:pointer; background: #0f1823; border-color:#1e2b3c; }
+      button.primary { background: #102033; border-color:#28507a; }
+      .kpigrid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; margin-top:12px; }
+      .kpi { background:#0d131b; border:1px dashed var(--line); padding:12px; border-radius:10px; }
+      .kpi b { display:block; font-size:12px; color: var(--muted); }
+      .kpi span { font-size:22px; display:block; margin-top:4px; }
+      .table-shell {
+        border-radius:12px;
+        background:#0d131b;
+        margin-top:16px;
+      }
+      table { width:100%; border-collapse: collapse; }
+      thead th { 
+        position: sticky; 
+        top: 80px;  /* altura ajustada del header en escritorio */
+        background:#101722; 
+        z-index: 10; 
+        box-shadow: 0 2px 3px rgba(0,0,0,0.4);
+      }
+      th, td { border-bottom: 1px solid #172333; text-align:left; padding:8px 10px; font-size: 13px; }
+      tr:hover td { background:#0f1621; }
+      .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
+      .row { display:flex; gap:10px; }
+      .row > * { flex:1; }
+      @media (max-width: 800px){
+        .form { grid-template-columns: 1fr; }
+        .kpigrid { grid-template-columns: 1fr; }
+        thead th { top: 140px; } /* header más alto en móvil */ 
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <h1>HISTORICO ALFARNATE</h1>
+      </div>
+    </header>
+    <main class="wrap">
+      <div class="card">
+        <div class="form">
+          <input id="stationId" value="IALFAR32" type="hidden" />
+          <div>
+            <label for="date">Fecha (YYYY-MM-DD)</label>
+            <div><label>Desde</label><input id="dateFrom" type="date" /></div>
+        <div><label>Hasta</label><input id="dateTo" type="date" /></div>
+          </div>
+          <div class="row">
+            <button id="loadBtn" class="primary">Cargar datos</button>
+            <button id="csvBtn">Exportar CSV</button>
+            <button id="xlsxBtn">Exportar Excel</button>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <div id="status" style="padding:10px 12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);">Listo</div>
+          </div>
         </div>
-
-        <div class="field">
-          <label for="dateTo">Hasta</label>
-          <input id="dateTo" type="date" />
+        <div class="kpigrid">
+          <div class="kpi"><b>Obs. totales</b><span id="kpiCount">—</span></div>
+          <div class="kpi"><b>Temp. mín</b><span id="kpiMin">—</span></div>
+          <div class="kpi"><b>Temp. máx</b><span id="kpiMax">—</span></div>
         </div>
-
-        <div class="field">
-          <label>&nbsp;</label>
-          <button id="btnLoad" type="button" class="btn primary">Cargar datos</button>
+        <div class="table-shell">
+          <table id="dataTable">
+            <thead>
+              <tr>
+                <th>Hora local</th>
+    <th>Temp (°C)</th>
+    <th>P. rocío (°C)</th>
+    <th>Humedad (%)</th>
+    <th>Presión (hPa)</th>
+    <th>Viento (km/h)</th>
+    <th>Ráfaga (km/h)</th>
+    <th>Dir (°)</th>
+    <th>Precip. Rate (mm)</th>
+    <th>Precip. Acum. (mm)</th>
+    <th>UV</th>
+    <th>Rad (W/m²)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
-      </form>
-
-      <div class="presets">
-        <span>Atajos:</span>
-        <button class="chip" data-preset="hoy"    type="button">Hoy</button>
-        <button class="chip" data-preset="ayer"   type="button">Ayer</button>
-        <button class="chip" data-preset="ult7"   type="button">Últimos 7 días</button>
-        <button class="chip" data-preset="mes"    type="button">Este mes</button>
+        <div class="foot">
+          Exporta como CSV (con separador ;) o Excel (.xlsx) para abrir en Excel sin problemas.
+        </div>
       </div>
-
-      <div class="status-row">
-        <div class="status" id="status">Listo</div>
-        <div class="hint">Consejo: puedes invertir las fechas; se corrigen automáticamente.</div>
+      <div style="margin:20px; text-align:center;">
+        <button class="primary" onclick="history.back()">⬅ Volver</button>
       </div>
-    </section>
-
-    <section class="kpis">
-      <div class="kpi">
-        <div class="kpi-label">Registros</div>
-        <div class="kpi-value" id="kpiCount">—</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Tª mínima</div>
-        <div class="kpi-value" id="kpiMin">—</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Tª máxima</div>
-        <div class="kpi-value" id="kpiMax">—</div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="table-wrap">
-        <table id="dataTable">
-          <thead>
-            <tr>
-              <th>Hora local</th>
-              <th>Temp</th>
-              <th>Dew</th>
-              <th>RH</th>
-              <th>Pres</th>
-              <th>Viento</th>
-              <th>Racha</th>
-              <th>Dir</th>
-              <th>PrecipRate</th>
-              <th>PrecipTotal</th>
-              <th>UV</th>
-              <th>Radiación</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-  </main>
-
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <div id="backdrop" class="backdrop hidden">
-    <div class="spinner" aria-label="Cargando" role="status"></div>
-  </div>
-
-  <script src="./app.js"></script>
-</body>
+    </main>
+    <script>
+      document.getElementById("csvBtn").addEventListener("click", () => {
+        const table = document.getElementById("dataTable");
+        let rows = [];
+        const headers = Array.from(table.querySelectorAll("thead th")).map(th => limpiarTexto(th.innerText));
+        rows.push(headers);
+        table.querySelectorAll("tbody tr").forEach(tr => {
+          const cells = Array.from(tr.querySelectorAll("td")).map(td => limpiarTexto(td.innerText));
+          rows.push(cells);
+        });
+        const csvString = rows.map(r => r.map(escaparCSV).join(";")).join("\n");
+        const BOM = "\uFEFF";
+        const blob = new Blob([BOM + csvString], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        descarga(url, "historico_alfarnate.csv");
+      });
+      document.getElementById("xlsxBtn").addEventListener("click", () => {
+        const table = document.getElementById("dataTable");
+        const wb = XLSX.utils.table_to_book(table, { sheet: "Histórico" });
+        XLSX.writeFile(wb, "historico_alfarnate.xlsx");
+      });
+      function descarga(url, filename){
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        a.remove();
+      }
+      function limpiarTexto(t){
+        return (t || "").toString().replace(/\r?\n|\r/g, " ").trim();
+      }
+      function escaparCSV(val){
+        const s = String(val ?? "");
+        const needsQuotes = /[;"\n]/.test(s);
+        const escaped = s.replace(/"/g, '""');
+        return needsQuotes ? `"${escaped}"` : escaped;
+      }
+    </script>
+    <script src="./app.js"></script>
+  </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
