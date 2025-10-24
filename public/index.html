@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Histórico WU · Rango de fechas</title>
 
-  <!-- Rails injecta la estación desde ENV['WU_STATION_ID'] -->
+  <!-- Rails inyecta la estación desde ENV['WU_STATION_ID'] -->
   <meta name="wu-station-id" content="<%= ENV.fetch('WU_STATION_ID', 'IALFAR32') %>">
 
   <link rel="stylesheet" href="./app.css" />
@@ -13,26 +13,57 @@
 <body>
   <header class="topbar">
     <div class="brand">🌤️ Histórico WU</div>
+    <nav class="actions">
+      <button id="btnCSV" class="btn secondary" disabled>Exportar CSV</button>
+      <a id="helpLink" class="link" href="#" title="Ayuda">Ayuda</a>
+    </nav>
   </header>
 
   <main class="container">
     <section class="card">
-      <div class="controls">
+      <form id="controls" class="controls" onsubmit="return false;">
         <div class="field">
           <label for="dateFrom">Desde</label>
           <input id="dateFrom" type="date" />
         </div>
+
         <div class="field">
           <label for="dateTo">Hasta</label>
           <input id="dateTo" type="date" />
         </div>
+
         <div class="field">
           <label>&nbsp;</label>
-          <button id="btnLoad" class="btn primary">Cargar datos</button>
+          <button id="btnLoad" type="button" class="btn primary">Cargar datos</button>
         </div>
+      </form>
+
+      <div class="presets">
+        <span>Atajos:</span>
+        <button class="chip" data-preset="hoy"    type="button">Hoy</button>
+        <button class="chip" data-preset="ayer"   type="button">Ayer</button>
+        <button class="chip" data-preset="ult7"   type="button">Últimos 7 días</button>
+        <button class="chip" data-preset="mes"    type="button">Este mes</button>
       </div>
+
       <div class="status-row">
         <div class="status" id="status">Listo</div>
+        <div class="hint">Consejo: puedes invertir las fechas; se corrigen automáticamente.</div>
+      </div>
+    </section>
+
+    <section class="kpis">
+      <div class="kpi">
+        <div class="kpi-label">Registros</div>
+        <div class="kpi-value" id="kpiCount">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Tª mínima</div>
+        <div class="kpi-value" id="kpiMin">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Tª máxima</div>
+        <div class="kpi-value" id="kpiMax">—</div>
       </div>
     </section>
 
@@ -61,10 +92,14 @@
     </section>
   </main>
 
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="backdrop" class="backdrop hidden">
+    <div class="spinner" aria-label="Cargando" role="status"></div>
+  </div>
+
   <script src="./app.js"></script>
 </body>
 </html>
-
 
 
 
