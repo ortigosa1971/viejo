@@ -1,15 +1,12 @@
-// ===== Utilidades =====
+// ===== Utilidades básicas (Fast-Fix) =====
+// Este cliente SOLO envía ?date=YYYYMMDD. Rails debe usar ENV['WU_STATION_ID'].
+
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-
 const fmtNum = (x, d=0) => (x == null || Number.isNaN(x)) ? '—' : (typeof x === 'number' ? x.toFixed(d) : x);
 
-function getStationIdFromRails() {
-  const meta = document.querySelector('meta[name="wu-station-id"]');
-  return meta?.content || "IALFAR32";
-}
-function toYYYYMMDD(iso) { return iso?.replaceAll('-', ''); }
-function parseWUResponse(json) { return json.rows || json.observations || json.data || json.history || []; }
+function toYYYYMMDD(iso){ return iso?.replaceAll('-',''); }
+function parseWUResponse(json){ return json.rows || json.observations || json.data || json.history || []; }
 
 function eachDateISO(fromISO, toISO) {
   const from = new Date(fromISO), to = new Date(toISO);
@@ -35,7 +32,6 @@ function setLoading(isLoading) {
   $("#btnLoad").disabled = isLoading;
 }
 
-// ---- fetch robusto ----
 async function fetchJsonSafe(url) {
   console.debug("[fetch] GET", url.toString ? url.toString() : url);
   const res = await fetch(url, { credentials: 'same-origin' });
@@ -53,17 +49,15 @@ async function fetchJsonSafe(url) {
 }
 
 // ===== Datos =====
-async function fetchDay(stationId, iso) {
+async function fetchDay(iso) {
   const url = new URL("/api/wu/history", window.location.origin);
-  url.searchParams.set("stationId", stationId);
-  url.searchParams.set("date", toYYYYMMDD(iso));
+  url.searchParams.set("date", toYYYYMMDD(iso)); // 👈 solo date
   const json = await fetchJsonSafe(url);
   return parseWUResponse(json);
 }
 
 async function loadRange(ev) {
   if (ev) ev.preventDefault();
-  const stationId = getStationIdFromRails();
   const fromISO = $("#dateFrom").value;
   const toISO   = $("#dateTo").value || fromISO;
 
@@ -79,12 +73,10 @@ async function loadRange(ev) {
   try {
     const dates = eachDateISO(startISO, endISO);
     const all = [];
-
-    // Descargas en paralelo por lotes
     const CONC = 3;
     for (let i=0; i<dates.length; i+=CONC) {
       const chunk = dates.slice(i, i+CONC);
-      const parts = await Promise.all(chunk.map(d => fetchDay(stationId, d)));
+      const parts = await Promise.all(chunk.map(d => fetchDay(d)));
       parts.forEach(rows => all.push(...rows));
       $("#status").textContent = `Cargando… ${all.length} registros`;
     }
@@ -191,6 +183,6 @@ function init(){
   console.debug("[init] ready");
 }
 
-// Soporta Rails Turbo/Turbolinks
 document.addEventListener("DOMContentLoaded", init);
 document.addEventListener("turbo:load", init);
+
